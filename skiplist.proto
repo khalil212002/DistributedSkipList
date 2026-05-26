@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+enum Action {
+    ACTION_INSERT = 0;
+    ACTION_DELETE = 1;
+    ACTION_SEARCH = 2;
+}
+
+enum Code{
+    CODE_SUCCESS = 0;
+    CODE_NOT_FOUND = 1;
+    CODE_ERROR = 3;
+}
+
+message SkipListRequest{
+    Action action = 1;
+    bytes data = 2;
+    uint32 hops = 3;
+}
+
+message SkipListResponse{
+    Code code = 1;
+    optional bytes data = 2;
+    uint32 hops = 3;
+    optional string error = 4;
+}
+
+service SkipListService{
+    rpc SendRequest (SkipListRequest) returns (SkipListResponse){}
+}
