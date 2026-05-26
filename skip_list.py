@@ -27,6 +27,13 @@ class SkipList:
         return node.data if node is not None else None
 
     def insert(self, data):
+        existing_node = self._search_node(data)
+        if existing_node:
+            while existing_node:
+                existing_node.data = data
+                existing_node = existing_node.bottom
+            return
+
         node_levels = self._get_random_length() + 1
 
         while self.height < node_levels:
