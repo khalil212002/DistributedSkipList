@@ -4,10 +4,9 @@ from concurrent import futures
 
 
 class Client:
-    def __init__(self, host, port):
+    def __init__(self, host):
         self.host = host
-        self.port = port
-        self.channel = grpc.insecure_channel(host + ":" + str(port))
+        self.channel = grpc.insecure_channel(host)
         self.stub = skiplist_pb2_grpc.SkipListServiceStub(self.channel)
 
     def close(self):
@@ -100,8 +99,10 @@ class Server(skiplist_pb2_grpc.SkipListServiceServicer):
         if None in [self.onDeleteFunc, self.onInsertFunc, self.onSearchFunc]:
             raise Exception("Should init callbacks before running server")
 
-        server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        skiplist_pb2_grpc.add_SkipListServiceServicer_to_server(self, server)
-        server.add_insecure_port("[::]:" + str(self.port))
-        server.start()
-        server.wait_for_termination()
+        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        skiplist_pb2_grpc.add_SkipListServiceServicer_to_server(self, self.server)
+        self.server.add_insecure_port("[::]:" + str(self.port))
+        self.server.start()
+
+    def wait(self):
+        self.server.wait_for_termination()

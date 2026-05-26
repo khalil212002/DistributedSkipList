@@ -1,0 +1,33 @@
+services:
+  site1:
+    build: .
+    container_name: site1
+    env_file:
+      - .env
+    environment:
+      - NAME=site1
+      - PEERS=site2,site3
+    ports:
+      - "8001:8000"
+
+  site2:
+    build: .
+    container_name: site2
+    env_file:
+      - .env
+    environment:
+      - NAME=site2
+      - PEERS=site1,site3
+    ports:
+      - "8002:8000"
+
+  site3:
+    build: .
+    container_name: site3
+    env_file:
+      - .env
+    environment:
+      - NAME=site3
+      - PEERS=site2,site1
+    ports:
+      - "8003:8000"
