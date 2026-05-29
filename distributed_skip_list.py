@@ -1,6 +1,6 @@
 from skip_list import SkipList
 from p2p import Server, Client
-import time
+import time, env
 
 
 class DistributedSkipList(SkipList):
@@ -11,12 +11,21 @@ class DistributedSkipList(SkipList):
         self.server.onInsert(self._on_remote_insert)
         self.server.onSearch(self._on_remote_search)
         self.server.onDelete(self._on_remote_delete)
+        self.clients = {}
 
     def serveAndConnect(self, hosts):
         self.server.serve()
         time.sleep(5)
-        peer_addresses = [f"{h}:{self.port}" for h in hosts]
-        self.clients = [Client(h) for h in peer_addresses]
+        self.clients = {h: Client(f"{h}:{self.port}") for h in hosts}
+
+    def getDataSite(self, data):
+        all_sites = [env.NAME, *env.PEERS]
+        for i, p in enumerate(all_sites):
+            if i < len(env.RANGES):
+                r = env.RANGES[i]
+                if (r[0] is None or r[0] <= data) and (r[1] is None or r[1] >= data):
+                    return p
+        return env.NAME
 
     def _on_remote_insert(self, data):
         return super().insert(data)
@@ -28,13 +37,22 @@ class DistributedSkipList(SkipList):
         return super().delete(data)
 
     def search(self, data):
-        # TODO: Implement distributed search logic
-        return super().search(data)
+        site = self.getDataSite(data)
+        if env.NAME == site:
+            res = super().search(data)
+            return (True, res) if res is not None else (False, None)
+        return self.clients[site].sendSearch(data)
 
     def insert(self, data):
-        # TODO: Implement distributed insert logic
-        return super().insert(data)
+        site = self.getDataSite(data)
+        if env.NAME == site:
+            res = super().search(data)
+            return (True, res) if res is not None else (False, None)
+        return self.clients[site].sendInsert(data)
 
     def delete(self, data):
-        # TODO: Implement distributed delete logic
-        return super().delete(data)
+        site = self.getDataSite(data)
+        if env.NAME == site:
+            res = super().search(data)
+            return (True, res) if res is not None else (False, None)
+        return self.clients[site].sendDelete(data)

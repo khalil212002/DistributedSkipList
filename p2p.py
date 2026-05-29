@@ -1,6 +1,7 @@
 import grpc, skiplist_pb2, skiplist_pb2_grpc
 import pickle
 from concurrent import futures
+import env
 
 
 class Client:
@@ -99,7 +100,9 @@ class Server(skiplist_pb2_grpc.SkipListServiceServicer):
         if None in [self.onDeleteFunc, self.onInsertFunc, self.onSearchFunc]:
             raise Exception("Should init callbacks before running server")
 
-        self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        self.server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=env.MAX_WORKERS)
+        )
         skiplist_pb2_grpc.add_SkipListServiceServicer_to_server(self, self.server)
         self.server.add_insecure_port("[::]:" + str(self.port))
         self.server.start()
