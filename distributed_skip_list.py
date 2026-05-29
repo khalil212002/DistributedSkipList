@@ -31,25 +31,25 @@ class DistributedSkipList(SkipList):
         site = self.getDataSite(data)
         if isServer or env.NAME == site:
             res = super().search(data)
-            return res, hops + 1
+            return res, hops
         
-        res, total_hops = self.clients[site].sendSearch(data, hops + 1)
+        res, total_hops = self.clients[site].sendSearch(data, hops)
         return res, total_hops
 
     def insert(self, data, isServer=False, hops=0):
         site = self.getDataSite(data)
         if isServer or env.NAME == site:
             super().insert(data)
-            return None, hops + 1
+            return None, hops
         
-        total_hops = self.clients[site].sendInsert(data, hops + 1)
+        total_hops = self.clients[site].sendInsert(data, hops)
         return None, total_hops
 
     def delete(self, data, isServer=False, hops=0):
         site = self.getDataSite(data)
         if isServer or env.NAME == site:
             super().delete(data)
-            return None, hops + 1
+            return None, hops
         
-        total_hops = self.clients[site].sendDelete(data, hops + 1)
+        total_hops = self.clients[site].sendDelete(data, hops)
         return None, total_hops

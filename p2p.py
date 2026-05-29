@@ -16,7 +16,7 @@ class Client:
 
     def _send_request(self, action, data, hops):
         request = skiplist_pb2.SkipListRequest(
-            action=action, data=pickle.dumps(data), hops=hops, isServer=self.isServer
+            action=action, data=pickle.dumps(data), hops=hops + 1, isServer=self.isServer
         )
         return self.stub.SendRequest(request)
 
@@ -24,21 +24,21 @@ class Client:
         response = self._send_request(skiplist_pb2.ACTION_INSERT, data=data, hops=hops)
         if response.code == skiplist_pb2.CODE_ERROR:
             raise Exception(response.error)
-        return response.hops
+        return response.hops + 1
 
     def sendDelete(self, data, hops=1):
         response = self._send_request(skiplist_pb2.ACTION_DELETE, data=data, hops=hops)
         if response.code == skiplist_pb2.CODE_ERROR:
             raise Exception(response.error)
-        return response.hops
+        return response.hops + 1
 
     def sendSearch(self, data, hops=1):
         response = self._send_request(skiplist_pb2.ACTION_SEARCH, data=data, hops=hops)
         if response.code == skiplist_pb2.CODE_ERROR:
             raise Exception(response.error)
         if response.code == skiplist_pb2.CODE_NOT_FOUND:
-            return None, response.hops
-        return pickle.loads(response.data), response.hops
+            return None, response.hops + 1
+        return pickle.loads(response.data), response.hops + 1
 
 
 class Server(skiplist_pb2_grpc.SkipListServiceServicer):
