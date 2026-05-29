@@ -8,15 +8,15 @@ class DistributedSkipList(SkipList):
         super().__init__(maxLevels)
         self.port = port
         self.server = Server(port)
-        self.server.onInsert(self._on_remote_insert)
-        self.server.onSearch(self._on_remote_search)
-        self.server.onDelete(self._on_remote_delete)
+        self.server.onInsert(self.insert)
+        self.server.onSearch(self.search)
+        self.server.onDelete(self.delete)
         self.clients = {}
 
     def serveAndConnect(self, hosts):
         self.server.serve()
         time.sleep(5)
-        self.clients = {h: Client(f"{h}:{self.port}") for h in hosts}
+        self.clients = {h: Client(f"{h}:{self.port}", True) for h in hosts}
 
     def getDataSite(self, data):
         all_sites = [env.NAME, *env.PEERS]
@@ -27,32 +27,29 @@ class DistributedSkipList(SkipList):
                     return p
         return env.NAME
 
-    def _on_remote_insert(self, data):
-        return super().insert(data)
-
-    def _on_remote_search(self, data):
-        return super().search(data)
-
-    def _on_remote_delete(self, data):
-        return super().delete(data)
-
-    def search(self, data):
+    def search(self, data, isServer=False, hops=0):
         site = self.getDataSite(data)
-        if env.NAME == site:
+        if isServer or env.NAME == site:
             res = super().search(data)
-            return (True, res) if res is not None else (False, None)
-        return self.clients[site].sendSearch(data)
+            return res, hops + 1
+        
+        res, total_hops = self.clients[site].sendSearch(data, hops + 1)
+        return res, total_hops
 
-    def insert(self, data):
+    def insert(self, data, isServer=False, hops=0):
         site = self.getDataSite(data)
-        if env.NAME == site:
-            res = super().search(data)
-            return (True, res) if res is not None else (False, None)
-        return self.clients[site].sendInsert(data)
+        if isServer or env.NAME == site:
+            super().insert(data)
+            return None, hops + 1
+        
+        total_hops = self.clients[site].sendInsert(data, hops + 1)
+        return None, total_hops
 
-    def delete(self, data):
+    def delete(self, data, isServer=False, hops=0):
         site = self.getDataSite(data)
-        if env.NAME == site:
-            res = super().search(data)
-            return (True, res) if res is not None else (False, None)
-        return self.clients[site].sendDelete(data)
+        if isServer or env.NAME == site:
+            super().delete(data)
+            return None, hops + 1
+        
+        total_hops = self.clients[site].sendDelete(data, hops + 1)
+        return None, total_hops
