@@ -10,6 +10,8 @@ class Store:
         self.value = value
 
     def __eq__(self, other):
+        if isinstance(other, str):
+            return self.key == other
         if not isinstance(other, Store):
             return False
         return self.key == other.key
@@ -17,6 +19,8 @@ class Store:
     def __lt__(self, other):
         if isinstance(other, float):
             return other != float("-inf")
+        if isinstance(other, str):
+            return self.key < other
         if not isinstance(other, Store):
             return NotImplemented
 
