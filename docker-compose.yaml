@@ -31,3 +31,17 @@ services:
       - PEERS=site2,site1
     ports:
       - "8003:8000"
+
+  simulation:
+    build: .
+    container_name: simulation
+    env_file:
+      - .env
+    environment:
+      - TARGET_HOST=site1:8000
+      - STARTUP_DELAY=10
+    command: python user_simulation.py
+    depends_on:
+      - site1
+      - site2
+      - site3
