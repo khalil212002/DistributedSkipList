@@ -1,85 +1,166 @@
-import random
-import env
-import time
 import os
-import string
+import time
+import random
+import csv
+import matplotlib.pyplot as plt
 from p2p import Client
-from store import Store
 
+# Configuration
+TARGET_HOST = os.getenv("TARGET_HOST", "site1:8000")
+STARTUP_DELAY = int(os.getenv("STARTUP_DELAY", "10"))
+BATCH_SIZES = [100, 500, 1000, 5000]
 
-def get_random_string(length=8):
-    letters = string.ascii_lowercase
-    return "".join(random.choice(letters) for i in range(length))
+# Define the output directory that is mapped to your host machine
+OUTPUT_DIR = "/app/results"
 
 
 def run_simulation():
-    # Delay to allow servers to start up and connect to each other
-    delay = int(os.getenv("STARTUP_DELAY", 15))
-    print(f"Waiting {delay} seconds for nodes to initialize...")
-    time.sleep(delay)
+    print(f"Waiting {STARTUP_DELAY} seconds for network to initialize...")
+    time.sleep(STARTUP_DELAY)
 
-    # Load environment variables
-    env.load()
+    print(f"Connecting to entry node: {TARGET_HOST}")
+    client = Client(TARGET_HOST)
 
-    # In Docker Compose, we use the service name as the host
-    # Defaulting to site1:8000 if not specified
-    target_host = os.getenv("TARGET_HOST", f"site1:8000")
-    print(f"Connecting to entry node at {target_host}...")
+    # Data storage
+    results_data = []
+    batches, avg_insert_times, avg_search_times = [], [], []
+    avg_insert_hops_data, avg_search_hops_data, error_rates = [], [], []
+    current_key_space = set()
 
-    client = Client(target_host, isServer=False)
+    # Ensure output directory exists
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-    print("\n--- Inserting Random Store Objects ---")
-    inserted_keys = []
+    for batch_size in BATCH_SIZES:
+        print(f"\n--- Starting Batch: {batch_size} Operations ---")
 
-    # Insert 10 random Store objects
-    for _ in range(10):
-        key = get_random_string(6)
-        value = f"value_for_{key}"
-        store_obj = Store(key, value)
-        print(f"Sending INSERT for key: {key}")
-        try:
-            hops = client.sendInsert(store_obj, hops=0)
-            print(f"  -> Inserted '{key}' successfully! (Took {hops} hops)")
-            inserted_keys.append(key)
-        except Exception as e:
-            print(f"  -> Failed to insert '{key}'. Error: {e}")
+        # 1. Insertion Test
+        insert_hops, insert_times, insert_errors = 0, [], 0
+        for _ in range(batch_size):
+            key = random.randint(1, 10000)
+            start_time = time.time()
+            try:
+                hops = client.sendInsert(key)
+                insert_hops += hops
+                current_key_space.add(key)
+            except Exception:
+                insert_errors += 1
+            insert_times.append(time.time() - start_time)
 
-    print("\n--- Searching for Inserted Data ---")
-    # Pick a few items we just inserted to search for them
-    sample_to_search = random.sample(inserted_keys, min(5, len(inserted_keys)))
-    for key in sample_to_search:
-        print(f"Sending SEARCH for key: {key}")
-        try:
-            # We search using a Store object with the same key
-            result, hops = client.sendSearch(Store(key, ""), hops=0)
-            if result is not None:
-                print(
-                    f"  -> Found! Key: {result.key}, Value: {result.value} (Took {hops} hops)"
-                )
-            else:
-                print(
-                    f"  -> Not found?! This shouldn't happen for '{key}'. (Took {hops} hops)"
-                )
-        except Exception as e:
-            print(f"  -> Failed to search '{key}'. Error: {e}")
+        # 2. Search Test
+        search_hops, search_times, search_errors = 0, [], 0
+        search_keys = (
+            random.choices(list(current_key_space), k=batch_size)
+            if current_key_space
+            else []
+        )
+        for key in search_keys:
+            start_time = time.time()
+            try:
+                result, hops = client.sendSearch(key)
+                search_hops += hops
+                if result is None:
+                    search_errors += 1
+            except Exception:
+                search_errors += 1
+            search_times.append(time.time() - start_time)
 
-    print("\n--- Searching for Non-Existent Data ---")
-    # Search for data we know isn't there
-    for key in ["missing_one", "unknown_user", "not_in_list"]:
-        print(f"Sending SEARCH for key: {key}")
-        try:
-            result, hops = client.sendSearch(Store(key, ""), hops=0)
-            if result is not None:
-                print(
-                    f"  -> Found! Key: {result.key}, Value: {result.value} (Took {hops} hops)"
-                )
-            else:
-                print(f"  -> Not found as expected for '{key}'! (Took {hops} hops)")
-        except Exception as e:
-            print(f"  -> Failed to search '{key}'. Error: {e}")
+        # 3. Delete Test (10% of batch)
+        delete_amount = max(1, batch_size // 10)
+        delete_hops, delete_times, delete_errors = 0, [], 0
+        delete_keys = (
+            random.choices(list(current_key_space), k=delete_amount)
+            if current_key_space
+            else []
+        )
+        for key in delete_keys:
+            start_time = time.time()
+            try:
+                hops = client.sendDelete(key)
+                delete_hops += hops
+                current_key_space.remove(key)
+            except Exception:
+                delete_errors += 1
+            delete_times.append(time.time() - start_time)
 
-    print("\nSimulation complete.")
-    client.close()
+        # Calculate Metrics
+        avg_insert_time = sum(insert_times) / len(insert_times) if insert_times else 0
+        avg_search_time = sum(search_times) / len(search_times) if search_times else 0
+        avg_insert_hop = insert_hops / batch_size if batch_size else 0
+        avg_search_hop = search_hops / batch_size if batch_size else 0
+
+        total_ops = batch_size * 2 + delete_amount
+        total_errors = insert_errors + search_errors + delete_errors
+        error_rate = (total_errors / total_ops) * 100
+
+        # Store for plotting & CSV
+        results_data.append(
+            {
+                "Batch Size": batch_size,
+                "Avg Insert Time (s)": round(avg_insert_time, 5),
+                "Avg Search Time (s)": round(avg_search_time, 5),
+                "Avg Insert Hops": round(avg_insert_hop, 2),
+                "Avg Search Hops": round(avg_search_hop, 2),
+                "Error Rate (%)": round(error_rate, 2),
+            }
+        )
+
+        batches.append(batch_size)
+        avg_insert_times.append(avg_insert_time)
+        avg_search_times.append(avg_search_time)
+        avg_insert_hops_data.append(avg_insert_hop)
+        avg_search_hops_data.append(avg_search_hop)
+        error_rates.append(error_rate)
+
+    print("\nSimulation complete. Saving results...")
+
+    # --- Save CSV Data ---
+    csv_file = os.path.join(OUTPUT_DIR, "simulation_results.csv")
+    with open(csv_file, mode="w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=results_data[0].keys())
+        writer.writeheader()
+        writer.writerows(results_data)
+
+    # --- Save Graph Image ---
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+
+    axs[0].plot(
+        batches, avg_insert_hops_data, label="Insert Hops", marker="o", color="blue"
+    )
+    axs[0].plot(
+        batches, avg_search_hops_data, label="Search Hops", marker="x", color="cyan"
+    )
+    axs[0].set_title("Average Network Hops vs Batch Size")
+    axs[0].set_xlabel("Batch Size (Operations)")
+    axs[0].set_ylabel("Average Hops")
+    axs[0].legend()
+    axs[0].grid(True)
+
+    axs[1].plot(
+        batches, avg_insert_times, label="Insert Time (s)", marker="o", color="red"
+    )
+    axs[1].plot(
+        batches, avg_search_times, label="Search Time (s)", marker="x", color="orange"
+    )
+    axs[1].set_title("Average Operation Latency vs Batch Size")
+    axs[1].set_xlabel("Batch Size (Operations)")
+    axs[1].set_ylabel("Time (Seconds)")
+    axs[1].legend()
+    axs[1].grid(True)
+
+    axs[2].plot(batches, error_rates, label="Error Rate (%)", marker="s", color="green")
+    axs[2].set_title("Error Rate vs Batch Size")
+    axs[2].set_xlabel("Batch Size (Operations)")
+    axs[2].set_ylabel("Error Rate (%)")
+    axs[2].legend()
+    axs[2].grid(True)
+
+    plt.tight_layout()
+
+    # Save the plot instead of showing it
+    png_file = os.path.join(OUTPUT_DIR, "simulation_graphs.png")
+    plt.savefig(png_file)
+    print(f"Data saved to {csv_file}")
+    print(f"Graphs saved to {png_file}")
 
 
 if __name__ == "__main__":

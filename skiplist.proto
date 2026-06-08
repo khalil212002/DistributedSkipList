@@ -16,7 +16,6 @@ message SkipListRequest{
     Action action = 1;
     bytes data = 2;
     uint32 hops = 3;
-    optional bool isServer = 4;
 }
 
 message SkipListResponse{

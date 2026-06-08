@@ -16,40 +16,38 @@ class DistributedSkipList(SkipList):
     def serveAndConnect(self, hosts):
         self.server.serve()
         time.sleep(5)
-        self.clients = {h: Client(f"{h}:{self.port}", True) for h in hosts}
+        self.clients = {h: Client(f"{h}:{self.port}") for h in hosts}
 
     def getDataSite(self, data):
-        all_sites = [env.NAME, *env.PEERS]
-        for i, p in enumerate(all_sites):
-            if i < len(env.RANGES):
-                r = env.RANGES[i]
-                if (r[0] is None or r[0] <= data) and (r[1] is None or r[1] >= data):
-                    return p
+        if env.RANGE[0] is not None and data < env.RANGE[0]:
+            return env.PEERS[0]
+        if env.RANGE[1] is not None and data > env.RANGE[1]:
+            return env.PEERS[1]
         return env.NAME
 
-    def search(self, data, isServer=False, hops=0):
+    def search(self, data, hops=0):
         site = self.getDataSite(data)
-        if isServer or env.NAME == site:
+        if env.NAME == site:
             res = super().search(data)
             return res, hops
-        
+
         res, total_hops = self.clients[site].sendSearch(data, hops)
         return res, total_hops
 
-    def insert(self, data, isServer=False, hops=0):
+    def insert(self, data, hops=0):
         site = self.getDataSite(data)
-        if isServer or env.NAME == site:
+        if env.NAME == site:
             super().insert(data)
             return None, hops
-        
+
         total_hops = self.clients[site].sendInsert(data, hops)
         return None, total_hops
 
-    def delete(self, data, isServer=False, hops=0):
+    def delete(self, data, hops=0):
         site = self.getDataSite(data)
-        if isServer or env.NAME == site:
+        if env.NAME == site:
             super().delete(data)
             return None, hops
-        
+
         total_hops = self.clients[site].sendDelete(data, hops)
         return None, total_hops

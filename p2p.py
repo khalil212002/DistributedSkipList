@@ -5,9 +5,8 @@ import env
 
 
 class Client:
-    def __init__(self, host, isServer=False):
+    def __init__(self, host):
         self.host = host
-        self.isServer = isServer
         self.channel = grpc.insecure_channel(host)
         self.stub = skiplist_pb2_grpc.SkipListServiceStub(self.channel)
 
@@ -16,7 +15,7 @@ class Client:
 
     def _send_request(self, action, data, hops):
         request = skiplist_pb2.SkipListRequest(
-            action=action, data=pickle.dumps(data), hops=hops + 1, isServer=self.isServer
+            action=action, data=pickle.dumps(data), hops=hops + 1
         )
         return self.stub.SendRequest(request)
 
@@ -50,11 +49,10 @@ class Server(skiplist_pb2_grpc.SkipListServiceServicer):
         self.onDeleteFunc = None
 
     def SendRequest(self, request, context):
-        isServer = request.isServer if request.HasField("isServer") else False
         if request.action == skiplist_pb2.ACTION_INSERT:
             obj = pickle.loads(request.data)
             try:
-                _, final_hops = self.onInsertFunc(obj, isServer, request.hops)
+                _, final_hops = self.onInsertFunc(obj, request.hops)
                 return skiplist_pb2.SkipListResponse(
                     code=skiplist_pb2.CODE_SUCCESS, hops=final_hops
                 )
@@ -65,7 +63,7 @@ class Server(skiplist_pb2_grpc.SkipListServiceServicer):
         if request.action == skiplist_pb2.ACTION_DELETE:
             obj = pickle.loads(request.data)
             try:
-                _, final_hops = self.onDeleteFunc(obj, isServer, request.hops)
+                _, final_hops = self.onDeleteFunc(obj, request.hops)
                 return skiplist_pb2.SkipListResponse(
                     code=skiplist_pb2.CODE_SUCCESS, hops=final_hops
                 )
@@ -76,7 +74,7 @@ class Server(skiplist_pb2_grpc.SkipListServiceServicer):
         if request.action == skiplist_pb2.ACTION_SEARCH:
             obj = pickle.loads(request.data)
             try:
-                found, final_hops = self.onSearchFunc(obj, isServer, request.hops)
+                found, final_hops = self.onSearchFunc(obj, request.hops)
                 if found is None:
                     return skiplist_pb2.SkipListResponse(
                         code=skiplist_pb2.CODE_NOT_FOUND, hops=final_hops

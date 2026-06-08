@@ -6,7 +6,10 @@ services:
       - .env
     environment:
       - NAME=site1
-      - PEERS=site2,site3
+      - RANGE_START=None
+      - RANGE_END=3300
+      - PEER_LOWER=None
+      - PEER_HIGHER=site2
     ports:
       - "8001:8000"
 
@@ -17,7 +20,10 @@ services:
       - .env
     environment:
       - NAME=site2
-      - PEERS=site1,site3
+      - RANGE_START=3301
+      - RANGE_END=6600
+      - PEER_LOWER=site1
+      - PEER_HIGHER=site3
     ports:
       - "8002:8000"
 
@@ -28,7 +34,10 @@ services:
       - .env
     environment:
       - NAME=site3
-      - PEERS=site2,site1
+      - RANGE_START=6601
+      - RANGE_END=None
+      - PEER_LOWER=site2
+      - PEER_HIGHER=None
     ports:
       - "8003:8000"
 
@@ -40,6 +49,8 @@ services:
     environment:
       - TARGET_HOST=site1:8000
       - STARTUP_DELAY=10
+    volumes:
+      - ./results:/app/results
     command: python user_simulation.py
     depends_on:
       - site1
