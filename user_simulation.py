@@ -8,7 +8,7 @@ from p2p import Client
 # Configuration
 TARGET_HOST = os.getenv("TARGET_HOST", "site1:8000")
 STARTUP_DELAY = int(os.getenv("STARTUP_DELAY", "10"))
-BATCH_SIZES = [100, 500, 1000, 5000]
+BATCH_SIZES = [100, 500, 1000, 5000, 10000]
 
 # Define the output directory that is mapped to your host machine
 OUTPUT_DIR = "/app/results"

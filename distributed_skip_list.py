@@ -31,7 +31,7 @@ class DistributedSkipList(SkipList):
             res = super().search(data)
             return res, hops
 
-        res, total_hops = self.clients[site].sendSearch(data, hops)
+        res, total_hops = self.clients[site].sendSearch(data, hops + 1)
         return res, total_hops
 
     def insert(self, data, hops=0):
@@ -40,7 +40,7 @@ class DistributedSkipList(SkipList):
             super().insert(data)
             return None, hops
 
-        total_hops = self.clients[site].sendInsert(data, hops)
+        total_hops = self.clients[site].sendInsert(data, hops + 1)
         return None, total_hops
 
     def delete(self, data, hops=0):
@@ -49,5 +49,5 @@ class DistributedSkipList(SkipList):
             super().delete(data)
             return None, hops
 
-        total_hops = self.clients[site].sendDelete(data, hops)
+        total_hops = self.clients[site].sendDelete(data, hops + 1)
         return None, total_hops
