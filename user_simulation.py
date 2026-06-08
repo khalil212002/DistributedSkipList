@@ -9,25 +9,30 @@ TARGET_HOST = os.getenv("TARGET_HOST", "site1:8000")
 STARTUP_DELAY = int(os.getenv("STARTUP_DELAY", "10"))
 N_SIZES = [100, 500, 1000, 5000, 10000]
 
-RESUTL_DIR = "/app/results"
+RESULT_DIR = "/app/results"
 
 
 def run_simulation():
-    print(f"Waiting {STARTUP_DELAY} secs for p2p connecction to start.")
+    print(f"Waiting {STARTUP_DELAY} secs for p2p connection to start...")
     time.sleep(STARTUP_DELAY)
 
     print(f"Connecting to: {TARGET_HOST}")
     cl = Client(TARGET_HOST)
 
     results_data = []
-    n, avgInsetTime, avgSearchTime = [], [], []
-    avgInsertHops, avgSearchHops, errRate = [], [], []
+    n_list = []
+    avgInsertTimes_list = []
+    avgSearchTimes_list = []
+    avgInsertHops_list = []
+    avgSearchHops_list = []
+    errRate_list = []
+
     createdKeys = set()
 
-    os.makedirs(RESUTL_DIR, exist_ok=True)
+    os.makedirs(RESULT_DIR, exist_ok=True)
 
     for nSize in N_SIZES:
-        print(f"\n\nN: {nSize}")
+        print(f"\n\n--- Batch Size: {nSize} ---")
 
         iHops, iTime, iError = 0, [], 0
         for _ in range(nSize):
@@ -56,15 +61,18 @@ def run_simulation():
 
         deleteAmount = max(1, nSize // 10)
         deleteHops, deleteTimes, deleteErrors = 0, [], 0
+
+        sample_size = min(deleteAmount, len(createdKeys))
         deleteKeys = (
-            random.choices(list(createdKeys), k=deleteAmount) if createdKeys else []
+            random.sample(list(createdKeys), k=sample_size) if createdKeys else []
         )
+
         for key in deleteKeys:
             startTime = time.time()
             try:
                 hops = cl.sendDelete(key)
                 deleteHops += hops
-                createdKeys.remove(key)
+                createdKeys.discard(key)
             except Exception:
                 deleteErrors += 1
             deleteTimes.append(time.time() - startTime)
@@ -72,11 +80,11 @@ def run_simulation():
         avgInsertTime = sum(iTime) / len(iTime) if iTime else 0
         avgSearchTime = sum(sTime) / len(sTime) if sTime else 0
         avgInsertHop = iHops / nSize if nSize else 0
-        avgSearchHops = sHops / nSize if nSize else 0
+        avgSearchHop = sHops / nSize if nSize else 0
 
         totalActions = nSize * 2 + deleteAmount
         totalErrs = iError + sError + deleteErrors
-        errorPersentage = (totalErrs / totalActions) * 100
+        errorPercentage = (totalErrs / totalActions) * 100
 
         results_data.append(
             {
@@ -84,19 +92,19 @@ def run_simulation():
                 "Avg Insert Time (s)": round(avgInsertTime, 5),
                 "Avg Search Time (s)": round(avgSearchTime, 5),
                 "Avg Insert Hops": round(avgInsertHop, 2),
-                "Avg Search Hops": round(avgSearchHops, 2),
-                "Error Rate (%)": round(errorPersentage, 2),
+                "Avg Search Hops": round(avgSearchHop, 2),
+                "Error Rate (%)": round(errorPercentage, 2),
             }
         )
 
-        n.append(nSize)
-        avgInsetTime.append(avgInsertTime)
-        avgSearchTime.append(avgSearchTime)
-        avgInsertHops.append(avgInsertHop)
-        avgSearchHops.append(avgSearchHops)
-        errRate.append(errorPersentage)
+        n_list.append(nSize)
+        avgInsertTimes_list.append(avgInsertTime)
+        avgSearchTimes_list.append(avgSearchTime)
+        avgInsertHops_list.append(avgInsertHop)
+        avgSearchHops_list.append(avgSearchHop)
+        errRate_list.append(errorPercentage)
 
-    csv_file = os.path.join(RESUTL_DIR, "simulation_results.csv")
+    csv_file = os.path.join(RESULT_DIR, "simulation_results.csv")
     with open(csv_file, mode="w", newline="") as file:
         writer = csv.DictWriter(file, fieldnames=results_data[0].keys())
         writer.writeheader()
@@ -104,23 +112,31 @@ def run_simulation():
 
     fig, axs = plt.subplots(1, 3, figsize=(18, 5))
 
-    axs[0].plot(n, avgInsertHops, label="Insert Hops", marker="o", color="blue")
-    axs[0].plot(n, avgSearchHops, label="Search Hops", marker="x", color="cyan")
+    axs[0].plot(
+        n_list, avgInsertHops_list, label="Insert Hops", marker="o", color="blue"
+    )
+    axs[0].plot(
+        n_list, avgSearchHops_list, label="Search Hops", marker="x", color="cyan"
+    )
     axs[0].set_title("Average Network Hops vs Batch Size")
     axs[0].set_xlabel("Batch Size (Operations)")
     axs[0].set_ylabel("Average Hops")
     axs[0].legend()
     axs[0].grid(True)
 
-    axs[1].plot(n, avgInsetTime, label="Insert Time (s)", marker="o", color="red")
-    axs[1].plot(n, avgSearchTime, label="Search Time (s)", marker="x", color="orange")
+    axs[1].plot(
+        n_list, avgInsertTimes_list, label="Insert Time (s)", marker="o", color="red"
+    )
+    axs[1].plot(
+        n_list, avgSearchTimes_list, label="Search Time (s)", marker="x", color="orange"
+    )
     axs[1].set_title("Average Operation Latency vs Batch Size")
     axs[1].set_xlabel("Batch Size (Operations)")
     axs[1].set_ylabel("Time (Seconds)")
     axs[1].legend()
     axs[1].grid(True)
 
-    axs[2].plot(n, errRate, label="Error Rate (%)", marker="s", color="green")
+    axs[2].plot(n_list, errRate_list, label="Error Rate (%)", marker="s", color="green")
     axs[2].set_title("Error Rate vs Batch Size")
     axs[2].set_xlabel("Batch Size (Operations)")
     axs[2].set_ylabel("Error Rate (%)")
@@ -129,7 +145,7 @@ def run_simulation():
 
     plt.tight_layout()
 
-    png_file = os.path.join(RESUTL_DIR, "simulation_graphs.png")
+    png_file = os.path.join(RESULT_DIR, "simulation_graphs.png")
     plt.savefig(png_file)
     print(f"Data saved to {csv_file}")
     print(f"Graphs saved to {png_file}")
