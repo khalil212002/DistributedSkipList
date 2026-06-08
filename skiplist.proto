@@ -13,18 +13,19 @@ enum Code{
 }
 
 message SkipListRequest{
-    Action action = 1;
-    bytes data = 2;
-    uint32 hops = 3;
+    Action action = 1; // an enum containing the action (search, delete, insert)
+    bytes data = 2; // the data sent coded as bytes
+    uint32 hops = 3; // uint counter for the network hops
 }
 
 message SkipListResponse{
-    Code code = 1;
-    optional bytes data = 2;
-    uint32 hops = 3;
-    optional string error = 4;
+    Code code = 1; // an enum representing the result of the action (success, not found, error)
+    optional bytes data = 2; // option data return as byts
+    uint32 hops = 3; // uint counter for the network hops
+    optional string error = 4; // optional string containing error message if code == error
 }
 
 service SkipListService{
-    rpc SendRequest (SkipListRequest) returns (SkipListResponse){}
+    // api endpoint recieves SkipListRequest and returns SkipListResponse
+    rpc SendRequest (SkipListRequest) returns (SkipListResponse){} 
 }
